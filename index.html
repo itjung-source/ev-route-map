@@ -51,10 +51,10 @@ const goLine=L.polyline(D.go.route,{color:'#1565c0',weight:5,opacity:.8});
 const backLine=L.polyline(D.back.route,{color:'#e65100',weight:5,opacity:.8});
 const goGrp=L.layerGroup([goLine,mkStations(D.go.stations,'#1565c0','🔵 ขาไป',D.go.total)]).addTo(map);
 const backGrp=L.layerGroup([backLine,mkStations(D.back.stations,'#e65100','🟠 ขากลับ',D.back.total)]).addTo(map);
-L.marker(D.start).addTo(map).bindPopup('📍 จุดเริ่มต้น / ปลายทางขากลับ');
-L.marker(D.camp).addTo(map).bindPopup('🏁 BLA BLA CAMP');
+L.marker(D.start).addTo(map).bindPopup('📍 <b>จุดเริ่มต้น</b> / ปลายทางขากลับ<br><a href="https://www.google.com/maps/dir/?api=1&destination='+D.start[0]+','+D.start[1]+'&travelmode=driving" target="_blank">🧭 นำทางไปที่นี่ ↗</a>');
+L.marker(D.camp).addTo(map).bindPopup('🏁 <b>BLA BLA CAMP</b> (จุดหมาย)<br><a href="https://www.google.com/maps/dir/?api=1&destination='+D.camp[0]+','+D.camp[1]+'&travelmode=driving" target="_blank">🧭 นำทางไปที่นี่ ↗</a>');
 L.marker(D.turn,{icon:L.divIcon({html:'<div style="font-size:24px">🔶</div>',className:'',iconSize:[24,24],iconAnchor:[12,12]})})
- .addTo(map).bindPopup('🔶 (ขาไป) เลี้ยวขวาออกมิตรภาพ → ทล.2235 → 1021<br><b>หลังจุดนี้ไม่มี PTT</b>');
+ .addTo(map).bindPopup('🔶 (ขาไป) เลี้ยวขวาออกมิตรภาพ → ทล.2235 → 1021<br><b>หลังจุดนี้ไม่มี PTT</b><br><a href="https://www.google.com/maps/search/?api=1&query='+D.turn[0]+','+D.turn[1]+'" target="_blank">เปิดใน Google Maps ↗</a>');
 L.control.layers(null,{['🔵 ขาไป ('+D.go.total+' กม.)']:goGrp,['🟠 ขากลับ ปราจีนบุรี ('+D.back.total+' กม.)']:backGrp},{collapsed:false}).addTo(map);
 function fit(){try{map.invalidateSize();map.fitBounds(L.featureGroup([goLine,backLine]).getBounds(),{padding:[40,40]});}catch(e){}}
 window.addEventListener('load',()=>setTimeout(fit,200));setTimeout(fit,400);

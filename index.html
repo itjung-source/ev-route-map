@@ -134,7 +134,7 @@ if(D.poi){
  document.getElementById('poidot').style.display='';
  overlays['📍 สถานที่น่าสนใจ ('+D.poi.markers.length+' ที่)']=pg;
 }
-const lc=L.control.layers(null,overlays,{collapsed:true}).addTo(map);
+const lc=L.control.layers(null,overlays,{collapsed:false}).addTo(map);
 (function(){
  const el=lc.getContainer();
  el.style.position='relative'; el.style.paddingTop='20px';

@@ -51,7 +51,8 @@
  <span class="boxclose" onclick="this.parentNode.style.display='none'" title="ปิด">×</span>
  📍 <b>วางลิงก์ Google Maps / พิกัด:</b> <small style="color:#888">(บันทึกอัตโนมัติ เปิดจากเครื่องอื่นได้)</small><br>
  <input id="sharein" placeholder="เช่น https://maps.app.goo.gl/... หรือ 13.75,100.5"/>
- <button id="sharego">แสดง + นำทาง</button>
+ <button id="sharego">📍 แสดงบนแผนที่</button>
+ <button id="sharenav" style="padding:5px 12px;margin-left:4px;background:#2e7d32;color:#fff;border:0;border-radius:5px;cursor:pointer;font-size:13px;font-weight:600">🧭 นำทาง</button>
  <button id="shareclr" style="padding:5px 10px;margin-left:4px;background:#c62828;color:#fff;border:0;border-radius:5px;cursor:pointer;font-size:13px">ลบ</button>
  <div id="sharemsg"></div>
 </div>
@@ -270,7 +271,18 @@ async function handleShare(){
   msg.textContent=ok?'⚠️ อ่านพิกัดไม่ได้ (บันทึกลิงก์ไว้แล้ว ลองแก้/วางใหม่ทีหลังได้)':'อ่านพิกัดไม่ได้ และบันทึกไม่สำเร็จ — ลองใหม่';
  }
 }
+function handleNavigate(){
+ const t=document.getElementById('sharein').value.trim();
+ if(!t) return;
+ // ลิงก์ Google Maps -> เปิดตรงๆ เลย ให้ Google จัดการนำทางเอง (ทำงานได้แม้เรา resolve พิกัดไม่สำเร็จ เช่น ลิงก์ ftid จากมือถือ)
+ if(/^https?:\/\//i.test(t) && /google\.[a-z.]+\/maps|maps\.app\.goo\.gl|goo\.gl\/maps|g\.co\/kgs/i.test(t)){
+  window.open(t,'_blank'); return;
+ }
+ // พิกัด/ที่อยู่เป็นข้อความ -> ส่งเป็น destination ให้ Google Maps ค้นหาและนำทางเอง
+ window.open('https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(t)+'&travelmode=driving','_blank');
+}
 document.getElementById('sharego').onclick=handleShare;
+document.getElementById('sharenav').onclick=handleNavigate;
 document.getElementById('shareclr').onclick=clearPin;
 document.getElementById('sharein').addEventListener('keydown',function(e){if(e.key==='Enter')handleShare();});
 L.DomEvent.disableClickPropagation(document.getElementById('sharebox'));

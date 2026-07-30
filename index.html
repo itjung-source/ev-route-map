@@ -148,11 +148,13 @@ const lc=L.control.layers(null,overlays,{collapsed:false}).addTo(map);
  reopen.onclick=function(){el.style.display='';reopen.style.display='none';};
 })();
 // ===== วางลิงก์ Google Maps / พิกัด -> ปักหมุด + นำทาง + บันทึกข้ามเครื่อง (jsonblob.com) =====
+// store เก็บ {text, lat, lng, ts} เสมอ (แม้ parse พิกัดไม่ได้ ก็ยังเก็บ text ไว้กันหาย) จนกว่าจะลบ/วางลิงก์ใหม่
 let sharedMarker=null;
 const PIN_STORE='https://jsonblob.com/api/jsonBlob/019fb219-10f4-764d-ba8c-bff7a5bfcbcc';
-async function savePin(lat,lng){
+async function savePinState(text,lat,lng){
  try{
-  const r=await fetch(PIN_STORE,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({lat:lat,lng:lng,ts:Date.now()})});
+  const r=await fetch(PIN_STORE,{method:'PUT',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({text:text||'',lat:(typeof lat==='number'?lat:null),lng:(typeof lng==='number'?lng:null),ts:Date.now()})});
   return r.ok;
  }catch(e){ return false; }
 }
@@ -161,10 +163,17 @@ async function loadPin(){
   const r=await fetch(PIN_STORE+'?_='+Date.now(),{cache:'no-store'});
   if(!r.ok) return;
   const j=await r.json();
-  if(j&&typeof j.lat==='number'&&typeof j.lng==='number') dropShared(j.lat,j.lng,false);
+  if(!j) return;
+  if(j.text) document.getElementById('sharein').value=j.text;
+  if(typeof j.lat==='number'&&typeof j.lng==='number') dropShared(j.lat,j.lng,false);
  }catch(e){}
 }
-async function clearPin(){ if(sharedMarker){map.removeLayer(sharedMarker);sharedMarker=null;} document.getElementById('sharein').value=''; document.getElementById('sharemsg').style.color='#555'; document.getElementById('sharemsg').textContent='ลบหมุดแล้ว'; try{ await fetch(PIN_STORE,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}); }catch(e){} }
+async function clearPin(){
+ if(sharedMarker){map.removeLayer(sharedMarker);sharedMarker=null;}
+ document.getElementById('sharein').value='';
+ document.getElementById('sharemsg').style.color='#555'; document.getElementById('sharemsg').textContent='ลบแล้ว';
+ await savePinState('',null,null);
+}
 function parseLatLng(t){
  if(!t) return null; t=t.trim();
  const pats=[
@@ -210,13 +219,16 @@ async function handleShare(){
   msg.style.color='#555'; msg.textContent='กำลังเปิดลิงก์สั้น…';
   try{ ll=await resolveShort(t); }catch(e){ ll=null; }
  }
- if(!ll){ msg.style.color='#c62828';
-  msg.textContent='อ่านพิกัดไม่ได้ — ลองวางลิงก์เต็ม (มี @lat,lng) หรือพิกัด เช่น 13.75,100.5'; return; }
- dropShared(ll[0],ll[1],true);
+ if(ll) dropShared(ll[0],ll[1],true);
  msg.style.color='#555'; msg.textContent='กำลังบันทึก…';
- const ok=await savePin(ll[0],ll[1]);
- if(ok){ msg.style.color='#2e7d32'; msg.textContent='✓ ปักหมุด + บันทึกแล้ว (เปิดจากเครื่องอื่นได้)'; }
- else { msg.style.color='#c62828'; msg.textContent='⚠️ ปักหมุดแล้วแต่บันทึกไม่สำเร็จ (จะหายถ้ารีเฟรช) — ลองใหม่'; }
+ const ok=await savePinState(t, ll?ll[0]:null, ll?ll[1]:null);   // เก็บ text เสมอ ไม่ว่าจะ parse พิกัดได้ไหม
+ if(ll){
+  msg.style.color=ok?'#2e7d32':'#c62828';
+  msg.textContent=ok?'✓ ปักหมุด + บันทึกแล้ว (เปิดจากเครื่องอื่นได้)':'⚠️ ปักหมุดแล้วแต่บันทึกไม่สำเร็จ — ลองใหม่';
+ }else{
+  msg.style.color=ok?'#e65100':'#c62828';
+  msg.textContent=ok?'⚠️ อ่านพิกัดไม่ได้ (บันทึกลิงก์ไว้แล้ว ลองแก้/วางใหม่ทีหลังได้)':'อ่านพิกัดไม่ได้ และบันทึกไม่สำเร็จ — ลองใหม่';
+ }
 }
 document.getElementById('sharego').onclick=handleShare;
 document.getElementById('shareclr').onclick=clearPin;

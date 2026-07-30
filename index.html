@@ -152,8 +152,8 @@ function parseLatLng(t){
  if(!t) return null; t=t.trim();
  const pats=[
   /^\s*(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{2,3}\.\d{3,})\s*$/,   // พิกัดเปล่า
-  /@(-?\d{1,2}\.\d+),(-?\d{2,3}\.\d+)/,                       // @lat,lng
-  /!3d(-?\d{1,2}\.\d+)!4d(-?\d{2,3}\.\d+)/,                   // !3d..!4d
+  /!3d(-?\d{1,2}\.\d+)!4d(-?\d{2,3}\.\d+)/,                   // !3d..!4d = ตำแหน่งหมุดจริง (แม่นสุด)
+  /@(-?\d{1,2}\.\d+),(-?\d{2,3}\.\d+)/,                       // @lat,lng = จุดกึ่งกลางแผนที่ (fallback)
   /[?&](?:q|query|ll|destination|center|sll|daddr|mlat)=(-?\d{1,2}\.\d+),?(-?\d{2,3}\.\d+)?/,
   /\/(-?\d{1,2}\.\d+),\+?(-?\d{2,3}\.\d+)/                    // /place/lat,lng
  ];
@@ -161,14 +161,16 @@ function parseLatLng(t){
  return null;
 }
 async function resolveShort(url){
- // ลิงก์สั้น goo.gl อ่านตรงๆ ไม่ได้ (CORS) -> ผ่าน proxy ดึงหน้าปลายทางแล้ว parse พิกัดจาก HTML
+ // ลิงก์สั้น goo.gl อ่านตรงๆ ไม่ได้ (CORS) -> ผ่าน proxy ดึงหน้า redirect (มี URL ปลายทาง+พิกัด) แล้ว parse
+ // parse body ทุก HTTP status (corsproxy อาจตอบ 429 แต่ body ยังมีหน้า redirect ของ goo.gl พร้อมพิกัด)
  const proxies=[
   u=>'https://corsproxy.io/?url='+encodeURIComponent(u),
+  u=>'https://api.codetabs.com/v1/proxy/?quest='+encodeURIComponent(u),
   u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u)
  ];
  for(const mk of proxies){
   try{
-   const r=await fetch(mk(url)); if(!r.ok) continue;
+   const r=await fetch(mk(url));
    const txt=await r.text();
    const ll=parseLatLng(txt); if(ll) return ll;
   }catch(e){}

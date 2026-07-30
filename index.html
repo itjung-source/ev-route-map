@@ -150,10 +150,11 @@ const lc=L.control.layers(null,overlays,{collapsed:true}).addTo(map);
 // store เก็บ {text, lat, lng, ts} เสมอ (แม้ parse พิกัดไม่ได้ ก็ยังเก็บ text ไว้กันหาย) จนกว่าจะลบ/วางลิงก์ใหม่
 let sharedMarker=null;
 const PIN_STORE='https://jsonblob.com/api/jsonBlob/019fb219-10f4-764d-ba8c-bff7a5bfcbcc';
-async function savePinState(text,lat,lng){
+async function savePinState(text,lat,lng,approx,address){
  try{
   const r=await fetch(PIN_STORE,{method:'PUT',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({text:text||'',lat:(typeof lat==='number'?lat:null),lng:(typeof lng==='number'?lng:null),ts:Date.now()})});
+    body:JSON.stringify({text:text||'',lat:(typeof lat==='number'?lat:null),lng:(typeof lng==='number'?lng:null),
+      approx:!!approx, address:address||null, ts:Date.now()})});
   return r.ok;
  }catch(e){ return false; }
 }
@@ -164,7 +165,7 @@ async function loadPin(){
   const j=await r.json();
   if(!j) return;
   if(j.text) document.getElementById('sharein').value=j.text;
-  if(typeof j.lat==='number'&&typeof j.lng==='number') dropShared(j.lat,j.lng,false);
+  if(typeof j.lat==='number'&&typeof j.lng==='number') dropShared(j.lat,j.lng,false,j.approx,j.address);
  }catch(e){}
 }
 async function clearPin(){
@@ -185,45 +186,85 @@ function parseLatLng(t){
  for(const p of pats){const m=t.match(p); if(m&&m[1]&&m[2]) return [parseFloat(m[1]),parseFloat(m[2])];}
  return null;
 }
-async function resolveShort(url){
- // ลิงก์สั้น goo.gl อ่านตรงๆ ไม่ได้ (CORS) -> ผ่าน proxy ดึงหน้า redirect (มี URL ปลายทาง+พิกัด) แล้ว parse
- // parse body ทุก HTTP status (corsproxy อาจตอบ 429 แต่ body ยังมีหน้า redirect ของ goo.gl พร้อมพิกัด)
- const proxies=[
-  u=>'https://corsproxy.io/?url='+encodeURIComponent(u),
-  u=>'https://api.codetabs.com/v1/proxy/?quest='+encodeURIComponent(u),
-  u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u)
- ];
- for(const mk of proxies){
+const SHARE_PROXIES=[
+ u=>'https://corsproxy.io/?url='+encodeURIComponent(u),
+ u=>'https://api.codetabs.com/v1/proxy/?quest='+encodeURIComponent(u),
+ u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u)
+];
+async function proxyFetchText(url){
+ for(const mk of SHARE_PROXIES){
+  try{ const r=await fetch(mk(url)); const txt=await r.text(); if(txt) return txt; }catch(e){}
+ }
+ return null;
+}
+function extractAddressFromBody(txt){
+ // ลิงก์แชร์ "สถานที่" จากมือถือ (มี ftid แทนพิกัดตรงๆ) ฝังที่อยู่เป็นข้อความไว้ในหน้า 2 แบบ:
+ // (1) หน้าเต็ม: JS blob ต่อจาก ftid hex  "0x..:0x..","address text"
+ let m=txt.match(/0x[0-9a-f]+:0x[0-9a-f]+\\?"\s*,\s*\\?"([^"\\]{4,150})/i);
+ if(m) return m[1].trim();
+ // (2) หน้า redirect สั้น (429/interstitial): <title> มี ...?q=344+Phu+Nub+...&ftid=...
+ m=txt.match(/[?&]q=([^&"]{4,200})/);
+ if(m){
+  try{ return decodeURIComponent(m[1].replace(/\+/g,' ')).trim(); }catch(e){ return m[1].replace(/\+/g,' ').trim(); }
+ }
+ return null;
+}
+async function geocodeAddress(addr){
+ // geocode ที่อยู่ผ่าน Nominatim (ไม่มี CORS -> ต้องผ่าน proxy) ตัดคำหน้าออกทีละส่วนถ้าหาไม่เจอ (เช่น ชื่อร้าน/ฟาร์มเฉพาะที่ไม่มีใน OSM)
+ const parts=addr.split(',').map(s=>s.trim()).filter(Boolean);
+ for(let cut=0; cut<parts.length-1; cut++){
+  const q=parts.slice(cut).join(', ');
+  const url='https://nominatim.openstreetmap.org/search?'+new URLSearchParams({q:q,format:'json',limit:'1',countrycodes:'th'});
+  const txt=await proxyFetchText(url);
+  if(!txt) continue;
   try{
-   const r=await fetch(mk(url));
-   const txt=await r.text();
-   const ll=parseLatLng(txt); if(ll) return ll;
+   const arr=JSON.parse(txt);
+   if(arr&&arr[0]) return {lat:parseFloat(arr[0].lat), lng:parseFloat(arr[0].lon), matched:q};
   }catch(e){}
  }
  return null;
 }
-function dropShared(lat,lng,pan){
+async function resolveShort(url){
+ // ลิงก์สั้น goo.gl อ่านตรงๆ ไม่ได้ (CORS) -> ผ่าน proxy ดึงหน้า redirect แล้ว parse
+ const txt=await proxyFetchText(url);
+ if(!txt) return null;
+ const ll=parseLatLng(txt);
+ if(ll) return {lat:ll[0], lng:ll[1], approx:false};
+ // ลิงก์แชร์สถานที่จากมือถือมักไม่มีพิกัดตรงๆ (ใช้ ftid แทน) -> geocode จากที่อยู่ที่ฝังไว้แทน (โดยประมาณ)
+ const addr=extractAddressFromBody(txt);
+ if(addr){
+  const g=await geocodeAddress(addr);
+  if(g) return {lat:g.lat, lng:g.lng, approx:true, address:addr};
+ }
+ return null;
+}
+function dropShared(lat,lng,pan,approx,address){
  if(sharedMarker) map.removeLayer(sharedMarker);
  sharedMarker=L.marker([lat,lng],{icon:L.divIcon({html:'<div class="sharepin"></div>',className:'',iconSize:[22,22],iconAnchor:[11,22]}),zIndexOffset:1000}).addTo(map);
- sharedMarker.bindPopup('<div class="pp"><b>📌 ตำแหน่งที่แชร์</b><br>'+lat.toFixed(5)+', '+lng.toFixed(5)+
+ const approxNote=approx?('<br><span class="tag" style="background:#e65100">⚠️ ตำแหน่งโดยประมาณ (จากที่อยู่)</span>'+(address?'<br><small style="color:#666">'+address+'</small>':'')):'';
+ sharedMarker.bindPopup('<div class="pp"><b>📌 ตำแหน่งที่แชร์</b><br>'+lat.toFixed(5)+', '+lng.toFixed(5)+approxNote+
   '<br><a href="https://www.google.com/maps/dir/?api=1&destination='+lat+','+lng+'&travelmode=driving" target="_blank">🧭 นำทางไปที่นี่ ↗</a></div>');
- if(pan!==false){ sharedMarker.openPopup(); map.setView([lat,lng],14); }
+ if(pan!==false){ sharedMarker.openPopup(); map.setView([lat,lng],approx?12:14); }
 }
 async function handleShare(){
  const inp=document.getElementById('sharein'), msg=document.getElementById('sharemsg');
  const t=inp.value.trim(); msg.style.color='#c62828'; msg.textContent='';
  if(!t){return;}
- let ll=parseLatLng(t);
- if(!ll && /(maps\.app\.goo\.gl|goo\.gl\/maps|g\.co\/kgs)/.test(t)){
-  msg.style.color='#555'; msg.textContent='กำลังเปิดลิงก์สั้น…';
-  try{ ll=await resolveShort(t); }catch(e){ ll=null; }
+ let res=null; const direct=parseLatLng(t);
+ if(direct) res={lat:direct[0], lng:direct[1], approx:false};
+ else if(/(maps\.app\.goo\.gl|goo\.gl\/maps|g\.co\/kgs|google\.[a-z.]+\/maps)/.test(t)){
+  msg.style.color='#555'; msg.textContent='กำลังเปิดลิงก์…';
+  try{ res=await resolveShort(t); }catch(e){ res=null; }
  }
- if(ll) dropShared(ll[0],ll[1],true);
+ if(res) dropShared(res.lat,res.lng,true,res.approx,res.address);
  msg.style.color='#555'; msg.textContent='กำลังบันทึก…';
- const ok=await savePinState(t, ll?ll[0]:null, ll?ll[1]:null);   // เก็บ text เสมอ ไม่ว่าจะ parse พิกัดได้ไหม
- if(ll){
+ const ok=await savePinState(t, res?res.lat:null, res?res.lng:null, res?res.approx:false, res?res.address:null);   // เก็บ text เสมอ ไม่ว่าจะ parse พิกัดได้ไหม
+ if(res&&!res.approx){
   msg.style.color=ok?'#2e7d32':'#c62828';
   msg.textContent=ok?'✓ ปักหมุด + บันทึกแล้ว (เปิดจากเครื่องอื่นได้)':'⚠️ ปักหมุดแล้วแต่บันทึกไม่สำเร็จ — ลองใหม่';
+ }else if(res&&res.approx){
+  msg.style.color=ok?'#e65100':'#c62828';
+  msg.textContent=(ok?'⚠️ ปักหมุดตำแหน่งโดยประมาณ + บันทึกแล้ว ':'⚠️ ปักหมุดโดยประมาณ แต่บันทึกไม่สำเร็จ ')+'(ลิงก์นี้ไม่มีพิกัดตรงๆ ใช้ที่อยู่หาตำแหน่งแทน อาจไม่ตรงจุดเป๊ะ)';
  }else{
   msg.style.color=ok?'#e65100':'#c62828';
   msg.textContent=ok?'⚠️ อ่านพิกัดไม่ได้ (บันทึกลิงก์ไว้แล้ว ลองแก้/วางใหม่ทีหลังได้)':'อ่านพิกัดไม่ได้ และบันทึกไม่สำเร็จ — ลองใหม่';

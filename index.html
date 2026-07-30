@@ -243,8 +243,7 @@ function dropShared(lat,lng,pan,approx,address){
  if(sharedMarker) map.removeLayer(sharedMarker);
  sharedMarker=L.marker([lat,lng],{icon:L.divIcon({html:'<div class="sharepin"></div>',className:'',iconSize:[22,22],iconAnchor:[11,22]}),zIndexOffset:1000}).addTo(map);
  const approxNote=approx?('<br><span class="tag" style="background:#e65100">⚠️ ตำแหน่งโดยประมาณ (จากที่อยู่)</span>'+(address?'<br><small style="color:#666">'+address+'</small>':'')):'';
- sharedMarker.bindPopup('<div class="pp"><b>📌 ตำแหน่งที่แชร์</b><br>'+lat.toFixed(5)+', '+lng.toFixed(5)+approxNote+
-  '<br><a href="https://www.google.com/maps/dir/?api=1&destination='+lat+','+lng+'&travelmode=driving" target="_blank">🧭 นำทางไปที่นี่ ↗</a></div>');
+ sharedMarker.bindPopup('<div class="pp"><b>📌 ตำแหน่งที่แชร์</b><br>'+lat.toFixed(5)+', '+lng.toFixed(5)+approxNote+'</div>');
  if(pan!==false){ sharedMarker.openPopup(); map.setView([lat,lng],approx?12:14); }
 }
 async function handleShare(){

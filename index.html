@@ -121,7 +121,19 @@ if(D.poi){
  document.getElementById('poidot').style.display='';
  overlays['📍 สถานที่น่าสนใจ ('+D.poi.markers.length+' ที่)']=pg;
 }
-L.control.layers(null,overlays,{collapsed:false}).addTo(map);
+const lc=L.control.layers(null,overlays,{collapsed:false}).addTo(map);
+(function(){
+ const el=lc.getContainer();
+ el.style.position='relative'; el.style.paddingTop='20px';
+ const x=document.createElement('span'); x.className='boxclose'; x.textContent='×'; x.title='ปิด';
+ x.style.top='2px'; x.style.right='7px'; el.appendChild(x);
+ const reopen=document.createElement('div');
+ reopen.innerHTML='☰ ชั้นข้อมูล'; reopen.title='เปิดรายการชั้นข้อมูล';
+ reopen.style.cssText='display:none;position:absolute;top:10px;right:10px;z-index:1000;background:#fff;padding:6px 10px;border-radius:6px;box-shadow:0 1px 5px rgba(0,0,0,.3);cursor:pointer;font-size:12px;font-weight:600';
+ document.body.appendChild(reopen);
+ x.onclick=function(){el.style.display='none';reopen.style.display='block';};
+ reopen.onclick=function(){el.style.display='';reopen.style.display='none';};
+})();
 function fit(){try{map.invalidateSize();map.fitBounds(line.getBounds(),{padding:[30,30]});}catch(e){}}
 window.addEventListener('load',function(){setTimeout(fit,200)});setTimeout(fit,400);
 </script></body></html>

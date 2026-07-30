@@ -150,8 +150,20 @@ const lc=L.control.layers(null,overlays,{collapsed:false}).addTo(map);
 // ===== วางลิงก์ Google Maps / พิกัด -> ปักหมุด + นำทาง + บันทึกข้ามเครื่อง (jsonblob.com) =====
 let sharedMarker=null;
 const PIN_STORE='https://jsonblob.com/api/jsonBlob/019fb219-10f4-764d-ba8c-bff7a5bfcbcc';
-async function savePin(lat,lng){ try{ await fetch(PIN_STORE,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({lat:lat,lng:lng,ts:Date.now()})}); }catch(e){} }
-async function loadPin(){ try{ const r=await fetch(PIN_STORE,{cache:'no-store'}); if(!r.ok) return; const j=await r.json(); if(j&&typeof j.lat==='number'&&typeof j.lng==='number') dropShared(j.lat,j.lng,false); }catch(e){} }
+async function savePin(lat,lng){
+ try{
+  const r=await fetch(PIN_STORE,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({lat:lat,lng:lng,ts:Date.now()})});
+  return r.ok;
+ }catch(e){ return false; }
+}
+async function loadPin(){
+ try{
+  const r=await fetch(PIN_STORE+'?_='+Date.now(),{cache:'no-store'});
+  if(!r.ok) return;
+  const j=await r.json();
+  if(j&&typeof j.lat==='number'&&typeof j.lng==='number') dropShared(j.lat,j.lng,false);
+ }catch(e){}
+}
 async function clearPin(){ if(sharedMarker){map.removeLayer(sharedMarker);sharedMarker=null;} document.getElementById('sharein').value=''; document.getElementById('sharemsg').style.color='#555'; document.getElementById('sharemsg').textContent='ลบหมุดแล้ว'; try{ await fetch(PIN_STORE,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}); }catch(e){} }
 function parseLatLng(t){
  if(!t) return null; t=t.trim();
@@ -200,8 +212,11 @@ async function handleShare(){
  }
  if(!ll){ msg.style.color='#c62828';
   msg.textContent='อ่านพิกัดไม่ได้ — ลองวางลิงก์เต็ม (มี @lat,lng) หรือพิกัด เช่น 13.75,100.5'; return; }
- msg.style.color='#2e7d32'; msg.textContent='✓ ปักหมุด + บันทึกแล้ว (เปิดจากเครื่องอื่นได้)';
- dropShared(ll[0],ll[1],true); savePin(ll[0],ll[1]);
+ dropShared(ll[0],ll[1],true);
+ msg.style.color='#555'; msg.textContent='กำลังบันทึก…';
+ const ok=await savePin(ll[0],ll[1]);
+ if(ok){ msg.style.color='#2e7d32'; msg.textContent='✓ ปักหมุด + บันทึกแล้ว (เปิดจากเครื่องอื่นได้)'; }
+ else { msg.style.color='#c62828'; msg.textContent='⚠️ ปักหมุดแล้วแต่บันทึกไม่สำเร็จ (จะหายถ้ารีเฟรช) — ลองใหม่'; }
 }
 document.getElementById('sharego').onclick=handleShare;
 document.getElementById('shareclr').onclick=clearPin;

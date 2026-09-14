@@ -31,9 +31,7 @@
  ol{margin:4px 0 0 18px;padding:0;font-size:12px;color:#444}
  #sharebox{bottom:20px;left:50%;transform:translateX(-50%);max-width:92%;text-align:center}
  #sharein{width:270px;max-width:60vw;padding:5px 8px;border:1px solid #bbb;border-radius:5px;font-size:13px;vertical-align:middle}
- #sharego{padding:5px 12px;margin-left:5px;background:#1565c0;color:#fff;border:0;border-radius:5px;cursor:pointer;font-size:13px;font-weight:600}
  #sharemsg{font-size:12px;color:#c62828;margin-top:3px;min-height:2px}
- .sharepin{background:#d32f2f;color:#fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);width:22px;height:22px;box-shadow:0 1px 4px rgba(0,0,0,.5);border:2px solid #fff}
 </style></head><body>
 <div id="title" class="box" style="display:none"><span id="ttl"></span> · รวม <span id="tot"></span> กม.
 <small id="sub"></small><ol id="legs"></ol></div>
@@ -49,9 +47,8 @@
  <small style="color:#666">🔴 หมุดใหญ่ = จุดแวะพัก (คลิกดูระยะ + นำทาง)<br>เริ่มต้นเปิดเฉพาะ PTT · เปิดค่ายอื่นที่ปุ่มขวาบน</small></div>
 <div id="sharebox" class="box">
  <span class="boxclose" onclick="this.parentNode.style.display='none'" title="ปิด">×</span>
- 📍 <b>วางลิงก์ Google Maps / พิกัด:</b> <small style="color:#888">(บันทึกอัตโนมัติ เปิดจากเครื่องอื่นได้)</small><br>
+ 📍 <b>วางลิงก์ Google Maps / ที่อยู่:</b> <small style="color:#888">(บันทึกไว้ในเครื่องนี้)</small><br>
  <input id="sharein" placeholder="เช่น https://maps.app.goo.gl/... หรือ 13.75,100.5"/>
- <button id="sharego">📍 แสดงบนแผนที่</button>
  <button id="sharenav" style="padding:5px 12px;margin-left:4px;background:#2e7d32;color:#fff;border:0;border-radius:5px;cursor:pointer;font-size:13px;font-weight:600">🧭 นำทาง</button>
  <button id="shareclr" style="padding:5px 10px;margin-left:4px;background:#c62828;color:#fff;border:0;border-radius:5px;cursor:pointer;font-size:13px">ลบ</button>
  <div id="sharemsg"></div>
@@ -147,145 +144,49 @@ const lc=L.control.layers(null,overlays,{collapsed:false}).addTo(map);
  x.onclick=function(){el.style.display='none';reopen.style.display='block';};
  reopen.onclick=function(){el.style.display='';reopen.style.display='none';};
 })();
-// ===== วางลิงก์ Google Maps / พิกัด -> ปักหมุด + นำทาง + บันทึกข้ามเครื่อง (jsonblob.com) =====
-// store เก็บ {text, lat, lng, ts} เสมอ (แม้ parse พิกัดไม่ได้ ก็ยังเก็บ text ไว้กันหาย) จนกว่าจะลบ/วางลิงก์ใหม่
-let sharedMarker=null;
-const PIN_STORE='https://jsonblob.com/api/jsonBlob/019fb219-10f4-764d-ba8c-bff7a5bfcbcc';
-async function savePinState(text,lat,lng,approx,address){
- try{
-  const r=await fetch(PIN_STORE,{method:'PUT',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({text:text||'',lat:(typeof lat==='number'?lat:null),lng:(typeof lng==='number'?lng:null),
-      approx:!!approx, address:address||null, ts:Date.now()})});
-  return r.ok;
- }catch(e){ return false; }
+// ===== วางลิงก์ Google Maps / ที่อยู่ -> แค่บันทึก text + ปุ่มนำทาง (ไม่ resolve พิกัด ไม่ปักหมุด) =====
+// เดิมพยายาม resolve พิกัดจากลิงก์สั้นผ่าน proxy สาธารณะ แล้วบันทึกข้าม device ผ่าน jsonblob.com (ไม่ต้อง login)
+// แต่ proxy พวกนี้ล่มเป็นระยะ และ jsonblob.com เปลี่ยนนโยบายให้ต้อง sign-in ถึงจะสร้าง/แก้ blob ได้แล้ว (พังถาวร
+// สำหรับ anonymous use) -> ตัดออกทั้งคู่ เหลือแค่บันทึกลง localStorage ของเบราว์เซอร์ (เครื่องนี้เท่านั้น
+// แต่รับประกันว่าใช้ได้เสมอ ไม่พึ่งบริการภายนอกที่อาจล่ม/เปลี่ยนนโยบายอีก)
+const LINK_KEY='ev_map_saved_link';
+function saveLinkText(text){
+ try{ localStorage.setItem(LINK_KEY, text||''); return true; }catch(e){ return false; }
 }
-async function loadPin(){
+function loadLinkText(){
  try{
-  const r=await fetch(PIN_STORE+'?_='+Date.now(),{cache:'no-store'});
-  if(!r.ok) return;
-  const j=await r.json();
-  if(!j) return;
-  if(j.text) document.getElementById('sharein').value=j.text;
-  if(typeof j.lat==='number'&&typeof j.lng==='number') dropShared(j.lat,j.lng,false,j.approx,j.address);
+  const t=localStorage.getItem(LINK_KEY);
+  if(t) document.getElementById('sharein').value=t;
  }catch(e){}
 }
-async function clearPin(){
- if(sharedMarker){map.removeLayer(sharedMarker);sharedMarker=null;}
+function clearLink(){
  document.getElementById('sharein').value='';
  document.getElementById('sharemsg').style.color='#555'; document.getElementById('sharemsg').textContent='ลบแล้ว';
- await savePinState('',null,null);
-}
-function parseLatLng(t){
- if(!t) return null; t=t.trim();
- const pats=[
-  /^\s*(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{2,3}\.\d{3,})\s*$/,   // พิกัดเปล่า
-  /!3d(-?\d{1,2}\.\d+)!4d(-?\d{2,3}\.\d+)/,                   // !3d..!4d = ตำแหน่งหมุดจริง (แม่นสุด)
-  /@(-?\d{1,2}\.\d+),(-?\d{2,3}\.\d+)/,                       // @lat,lng = จุดกึ่งกลางแผนที่ (fallback)
-  /[?&](?:q|query|ll|destination|center|sll|daddr|mlat)=(-?\d{1,2}\.\d+),?(-?\d{2,3}\.\d+)?/,
-  /\/(-?\d{1,2}\.\d+),\+?(-?\d{2,3}\.\d+)/                    // /place/lat,lng
- ];
- for(const p of pats){const m=t.match(p); if(m&&m[1]&&m[2]) return [parseFloat(m[1]),parseFloat(m[2])];}
- return null;
-}
-const SHARE_PROXIES=[
- u=>'https://corsproxy.io/?url='+encodeURIComponent(u),
- u=>'https://api.codetabs.com/v1/proxy/?quest='+encodeURIComponent(u),
- u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u)
-];
-async function proxyFetchText(url){
- for(const mk of SHARE_PROXIES){
-  try{ const r=await fetch(mk(url)); const txt=await r.text(); if(txt) return txt; }catch(e){}
- }
- return null;
-}
-function extractAddressFromBody(txt){
- // ลิงก์แชร์ "สถานที่" จากมือถือ (มี ftid แทนพิกัดตรงๆ) ฝังที่อยู่เป็นข้อความไว้ในหน้า 2 แบบ:
- // (1) หน้าเต็ม: JS blob ต่อจาก ftid hex  "0x..:0x..","address text"
- let m=txt.match(/0x[0-9a-f]+:0x[0-9a-f]+\\?"\s*,\s*\\?"([^"\\]{4,150})/i);
- if(m) return m[1].trim();
- // (2) หน้า redirect สั้น (429/interstitial): <title> มี ...?q=344+Phu+Nub+...&ftid=...
- m=txt.match(/[?&]q=([^&"]{4,200})/);
- if(m){
-  try{ return decodeURIComponent(m[1].replace(/\+/g,' ')).trim(); }catch(e){ return m[1].replace(/\+/g,' ').trim(); }
- }
- return null;
-}
-async function geocodeAddress(addr){
- // geocode ที่อยู่ผ่าน Nominatim (ไม่มี CORS -> ต้องผ่าน proxy) ตัดคำหน้าออกทีละส่วนถ้าหาไม่เจอ (เช่น ชื่อร้าน/ฟาร์มเฉพาะที่ไม่มีใน OSM)
- const parts=addr.split(',').map(s=>s.trim()).filter(Boolean);
- for(let cut=0; cut<parts.length-1; cut++){
-  const q=parts.slice(cut).join(', ');
-  const url='https://nominatim.openstreetmap.org/search?'+new URLSearchParams({q:q,format:'json',limit:'1',countrycodes:'th'});
-  const txt=await proxyFetchText(url);
-  if(!txt) continue;
-  try{
-   const arr=JSON.parse(txt);
-   if(arr&&arr[0]) return {lat:parseFloat(arr[0].lat), lng:parseFloat(arr[0].lon), matched:q};
-  }catch(e){}
- }
- return null;
-}
-async function resolveShort(url){
- // ลิงก์สั้น goo.gl อ่านตรงๆ ไม่ได้ (CORS) -> ผ่าน proxy ดึงหน้า redirect แล้ว parse
- const txt=await proxyFetchText(url);
- if(!txt) return null;
- const ll=parseLatLng(txt);
- if(ll) return {lat:ll[0], lng:ll[1], approx:false};
- // ลิงก์แชร์สถานที่จากมือถือมักไม่มีพิกัดตรงๆ (ใช้ ftid แทน) -> geocode จากที่อยู่ที่ฝังไว้แทน (โดยประมาณ)
- const addr=extractAddressFromBody(txt);
- if(addr){
-  const g=await geocodeAddress(addr);
-  if(g) return {lat:g.lat, lng:g.lng, approx:true, address:addr};
- }
- return null;
-}
-function dropShared(lat,lng,pan,approx,address){
- if(sharedMarker) map.removeLayer(sharedMarker);
- sharedMarker=L.marker([lat,lng],{icon:L.divIcon({html:'<div class="sharepin"></div>',className:'',iconSize:[22,22],iconAnchor:[11,22]}),zIndexOffset:1000}).addTo(map);
- const approxNote=approx?('<br><span class="tag" style="background:#e65100">⚠️ ตำแหน่งโดยประมาณ (จากที่อยู่)</span>'+(address?'<br><small style="color:#666">'+address+'</small>':'')):'';
- sharedMarker.bindPopup('<div class="pp"><b>📌 ตำแหน่งที่แชร์</b><br>'+lat.toFixed(5)+', '+lng.toFixed(5)+approxNote+'</div>');
- if(pan!==false){ sharedMarker.openPopup(); map.setView([lat,lng],approx?12:14); }
-}
-async function handleShare(){
- const inp=document.getElementById('sharein'), msg=document.getElementById('sharemsg');
- const t=inp.value.trim(); msg.style.color='#c62828'; msg.textContent='';
- if(!t){return;}
- let res=null; const direct=parseLatLng(t);
- if(direct) res={lat:direct[0], lng:direct[1], approx:false};
- else if(/(maps\.app\.goo\.gl|goo\.gl\/maps|g\.co\/kgs|google\.[a-z.]+\/maps)/.test(t)){
-  msg.style.color='#555'; msg.textContent='กำลังเปิดลิงก์…';
-  try{ res=await resolveShort(t); }catch(e){ res=null; }
- }
- if(res) dropShared(res.lat,res.lng,true,res.approx,res.address);
- msg.style.color='#555'; msg.textContent='กำลังบันทึก…';
- const ok=await savePinState(t, res?res.lat:null, res?res.lng:null, res?res.approx:false, res?res.address:null);   // เก็บ text เสมอ ไม่ว่าจะ parse พิกัดได้ไหม
- if(res&&!res.approx){
-  msg.style.color=ok?'#2e7d32':'#c62828';
-  msg.textContent=ok?'✓ ปักหมุด + บันทึกแล้ว (เปิดจากเครื่องอื่นได้)':'⚠️ ปักหมุดแล้วแต่บันทึกไม่สำเร็จ — ลองใหม่';
- }else if(res&&res.approx){
-  msg.style.color=ok?'#e65100':'#c62828';
-  msg.textContent=(ok?'⚠️ ปักหมุดตำแหน่งโดยประมาณ + บันทึกแล้ว ':'⚠️ ปักหมุดโดยประมาณ แต่บันทึกไม่สำเร็จ ')+'(ลิงก์นี้ไม่มีพิกัดตรงๆ ใช้ที่อยู่หาตำแหน่งแทน อาจไม่ตรงจุดเป๊ะ)';
- }else{
-  msg.style.color=ok?'#e65100':'#c62828';
-  msg.textContent=ok?'⚠️ อ่านพิกัดไม่ได้ (บันทึกลิงก์ไว้แล้ว ลองแก้/วางใหม่ทีหลังได้)':'อ่านพิกัดไม่ได้ และบันทึกไม่สำเร็จ — ลองใหม่';
- }
+ saveLinkText('');
 }
 function handleNavigate(){
  const t=document.getElementById('sharein').value.trim();
  if(!t) return;
- // ลิงก์ Google Maps -> เปิดตรงๆ เลย ให้ Google จัดการนำทางเอง (ทำงานได้แม้เรา resolve พิกัดไม่สำเร็จ เช่น ลิงก์ ftid จากมือถือ)
+ // ลิงก์ Google Maps -> เปิดตรงๆ เลย ให้ Google จัดการนำทางเอง
  if(/^https?:\/\//i.test(t) && /google\.[a-z.]+\/maps|maps\.app\.goo\.gl|goo\.gl\/maps|g\.co\/kgs/i.test(t)){
   window.open(t,'_blank'); return;
  }
  // พิกัด/ที่อยู่เป็นข้อความ -> ส่งเป็น destination ให้ Google Maps ค้นหาและนำทางเอง
  window.open('https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(t)+'&travelmode=driving','_blank');
 }
-document.getElementById('sharego').onclick=handleShare;
+function handleSaveOnEdit(){
+ const msg=document.getElementById('sharemsg');
+ const t=document.getElementById('sharein').value.trim();
+ const ok=saveLinkText(t);
+ msg.style.color=ok?'#2e7d32':'#c62828';
+ msg.textContent=ok?'✓ บันทึกแล้ว (เครื่องนี้เท่านั้น)':'⚠️ บันทึกไม่สำเร็จ';
+}
 document.getElementById('sharenav').onclick=handleNavigate;
-document.getElementById('shareclr').onclick=clearPin;
-document.getElementById('sharein').addEventListener('keydown',function(e){if(e.key==='Enter')handleShare();});
+document.getElementById('shareclr').onclick=clearLink;
+document.getElementById('sharein').addEventListener('keydown',function(e){if(e.key==='Enter')handleSaveOnEdit();});
+document.getElementById('sharein').addEventListener('blur',handleSaveOnEdit);
 L.DomEvent.disableClickPropagation(document.getElementById('sharebox'));
-loadPin();  // โหลดหมุดที่บันทึกไว้ตอนเปิดหน้า (ข้ามเครื่อง)
+loadLinkText();  // โหลดลิงก์ที่บันทึกไว้ตอนเปิดหน้า (เครื่องนี้)  // โหลดลิงก์ที่บันทึกไว้ตอนเปิดหน้า (ข้ามเครื่อง)  // โหลดหมุดที่บันทึกไว้ตอนเปิดหน้า (ข้ามเครื่อง)
 function fit(){try{map.invalidateSize();map.fitBounds(line.getBounds(),{padding:[30,30]});}catch(e){}}
 window.addEventListener('load',function(){setTimeout(fit,200)});setTimeout(fit,400);
 </script></body></html>

@@ -29,9 +29,6 @@
  .poibox{background:#f3e5f5;border-left:3px solid #8e24aa;padding:4px 7px;margin:5px 0;border-radius:3px;font-size:12.5px}
  .navlink{display:inline-block;margin-top:6px;padding:4px 9px;background:#7b1fa2;color:#fff !important;border-radius:5px;text-decoration:none;font-size:12px;font-weight:600}
  ol{margin:4px 0 0 18px;padding:0;font-size:12px;color:#444}
- #sharebox{bottom:20px;left:50%;transform:translateX(-50%);max-width:92%;text-align:center}
- #sharein{width:270px;max-width:60vw;padding:5px 8px;border:1px solid #bbb;border-radius:5px;font-size:13px;vertical-align:middle}
- #sharemsg{font-size:12px;color:#c62828;margin-top:3px;min-height:2px}
 </style></head><body>
 <div id="title" class="box" style="display:none"><span id="ttl"></span> · รวม <span id="tot"></span> กม.
 <small id="sub"></small><ol id="legs"></ol></div>
@@ -45,14 +42,6 @@
  <span id="poidot" style="display:none"><span class="poistar">★</span><b>สถานที่น่าสนใจ</b> · สถานีใกล้เคียง = หมุดยี่ห้อ<b style="color:#8e24aa">ขอบม่วง</b><br></span>
  <span class="hubmk" style="background:#555;width:16px;height:16px;line-height:13px;font-size:10px;vertical-align:middle;display:inline-block">H</span> หมุดตัว <b>H</b> = สถานี Hub (chargers ≥3 หัว)<br>
  <small style="color:#666">🔴 หมุดใหญ่ = จุดแวะพัก (คลิกดูระยะ + นำทาง)<br>เริ่มต้นเปิดเฉพาะ PTT · เปิดค่ายอื่นที่ปุ่มขวาบน</small></div>
-<div id="sharebox" class="box">
- <span class="boxclose" onclick="this.parentNode.style.display='none'" title="ปิด">×</span>
- 📍 <b>วางลิงก์ Google Maps / ที่อยู่:</b> <small style="color:#888">(บันทึกไว้ในเครื่องนี้)</small><br>
- <input id="sharein" placeholder="เช่น https://maps.app.goo.gl/... หรือ 13.75,100.5"/>
- <button id="sharenav" style="padding:5px 12px;margin-left:4px;background:#2e7d32;color:#fff;border:0;border-radius:5px;cursor:pointer;font-size:13px;font-weight:600">🧭 นำทาง</button>
- <button id="sharecopy" style="padding:5px 12px;margin-left:4px;background:#1565c0;color:#fff;border:0;border-radius:5px;cursor:pointer;font-size:13px;font-weight:600">📤 คัดลอกลิงก์เปิดเครื่องอื่น</button>
- <button id="shareclr" style="padding:5px 10px;margin-left:4px;background:#c62828;color:#fff;border:0;border-radius:5px;cursor:pointer;font-size:13px">ลบ</button>
- <div id="sharemsg"></div>
 </div>
 <div id="map"></div>
 <script>
@@ -145,66 +134,6 @@ const lc=L.control.layers(null,overlays,{collapsed:false}).addTo(map);
  x.onclick=function(){el.style.display='none';reopen.style.display='block';};
  reopen.onclick=function(){el.style.display='';reopen.style.display='none';};
 })();
-// ===== วางลิงก์ Google Maps / ที่อยู่ -> บันทึก text + ปุ่มนำทาง + ปุ่มคัดลอกลิงก์ไปเปิดเครื่องอื่น =====
-// เคยลองหลายทาง: (1) resolve พิกัดจากลิงก์สั้นผ่าน proxy สาธารณะ (2) บันทึกข้าม device ผ่าน jsonblob.com
-// ทั้งคู่พึ่งบริการภายนอกฟรีที่ไม่มี auth -> โดนปิด/ล็อกดาวน์เป็นระยะ (jsonblob เปลี่ยนนโยบายให้ต้อง sign-in,
-// proxy หลายเจ้าเลิกให้ใช้ฟรี) ทำให้ฟีเจอร์พังกะทันหันซ้ำๆ -> เลิกพึ่งบริการภายนอกทั้งหมด
-// ใช้ 2 กลไกที่ไม่มีวันพัง: localStorage (จำในเครื่องเดิม) + URL parameter (ส่ง "ลิงก์เปิดเครื่องอื่น"
-// ให้ตัวเองทาง LINE/อีเมล ฯลฯ แล้วเปิดบนเครื่องปลายทาง จะเห็นค่าเดียวกันทันที ไม่ต้องมี backend เลย)
-const LINK_KEY='ev_map_saved_link';
-function saveLinkText(text){
- try{ localStorage.setItem(LINK_KEY, text||''); return true; }catch(e){ return false; }
-}
-function loadLinkText(){
- try{
-  const p=new URLSearchParams(location.search);
-  const fromUrl=p.get('savedlink');
-  const t=fromUrl||localStorage.getItem(LINK_KEY);
-  if(t){ document.getElementById('sharein').value=t; if(fromUrl) saveLinkText(t); }
-  if(fromUrl){ p.delete('savedlink'); const q=p.toString(); history.replaceState(null,'',location.pathname+(q?'?'+q:'')); }
- }catch(e){}
-}
-function clearLink(){
- document.getElementById('sharein').value='';
- document.getElementById('sharemsg').style.color='#555'; document.getElementById('sharemsg').textContent='ลบแล้ว';
- saveLinkText('');
-}
-function handleNavigate(){
- const t=document.getElementById('sharein').value.trim();
- if(!t) return;
- // ลิงก์ Google Maps -> เปิดตรงๆ เลย ให้ Google จัดการนำทางเอง
- if(/^https?:\/\//i.test(t) && /google\.[a-z.]+\/maps|maps\.app\.goo\.gl|goo\.gl\/maps|g\.co\/kgs/i.test(t)){
-  window.open(t,'_blank'); return;
- }
- // พิกัด/ที่อยู่เป็นข้อความ -> ส่งเป็น destination ให้ Google Maps ค้นหาและนำทางเอง
- window.open('https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(t)+'&travelmode=driving','_blank');
-}
-function handleSaveOnEdit(){
- const msg=document.getElementById('sharemsg');
- const t=document.getElementById('sharein').value.trim();
- const ok=saveLinkText(t);
- msg.style.color=ok?'#2e7d32':'#c62828';
- msg.textContent=ok?'✓ บันทึกแล้ว (เครื่องนี้เท่านั้น)':'⚠️ บันทึกไม่สำเร็จ';
-}
-async function handleCopyCrossDevice(){
- const msg=document.getElementById('sharemsg');
- const t=document.getElementById('sharein').value.trim();
- if(!t){ msg.style.color='#c62828'; msg.textContent='ยังไม่ได้วางลิงก์'; return; }
- const url=location.origin+location.pathname+'?savedlink='+encodeURIComponent(t);
- try{
-  await navigator.clipboard.writeText(url);
-  msg.style.color='#1565c0'; msg.textContent='✓ คัดลอกแล้ว! ส่งให้ตัวเอง (LINE/อีเมล) แล้วเปิดบนเครื่องอื่นได้เลย';
- }catch(e){
-  msg.style.color='#1565c0'; msg.textContent='คัดลอกไม่ได้ นี่คือลิงก์: '+url;
- }
-}
-document.getElementById('sharenav').onclick=handleNavigate;
-document.getElementById('sharecopy').onclick=handleCopyCrossDevice;
-document.getElementById('shareclr').onclick=clearLink;
-document.getElementById('sharein').addEventListener('keydown',function(e){if(e.key==='Enter')handleSaveOnEdit();});
-document.getElementById('sharein').addEventListener('blur',handleSaveOnEdit);
-L.DomEvent.disableClickPropagation(document.getElementById('sharebox'));
-loadLinkText();  // โหลดลิงก์ที่บันทึกไว้ (เครื่องนี้ หรือจาก ?savedlink= ที่ส่งมาจากเครื่องอื่น)  // โหลดลิงก์ที่บันทึกไว้ตอนเปิดหน้า (เครื่องนี้)  // โหลดลิงก์ที่บันทึกไว้ตอนเปิดหน้า (ข้ามเครื่อง)  // โหลดหมุดที่บันทึกไว้ตอนเปิดหน้า (ข้ามเครื่อง)
 function fit(){try{map.invalidateSize();map.fitBounds(line.getBounds(),{padding:[30,30]});}catch(e){}}
 window.addEventListener('load',function(){setTimeout(fit,200)});setTimeout(fit,400);
 </script></body></html>

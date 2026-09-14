@@ -50,6 +50,7 @@
  📍 <b>วางลิงก์ Google Maps / ที่อยู่:</b> <small style="color:#888">(บันทึกไว้ในเครื่องนี้)</small><br>
  <input id="sharein" placeholder="เช่น https://maps.app.goo.gl/... หรือ 13.75,100.5"/>
  <button id="sharenav" style="padding:5px 12px;margin-left:4px;background:#2e7d32;color:#fff;border:0;border-radius:5px;cursor:pointer;font-size:13px;font-weight:600">🧭 นำทาง</button>
+ <button id="sharecopy" style="padding:5px 12px;margin-left:4px;background:#1565c0;color:#fff;border:0;border-radius:5px;cursor:pointer;font-size:13px;font-weight:600">📤 คัดลอกลิงก์เปิดเครื่องอื่น</button>
  <button id="shareclr" style="padding:5px 10px;margin-left:4px;background:#c62828;color:#fff;border:0;border-radius:5px;cursor:pointer;font-size:13px">ลบ</button>
  <div id="sharemsg"></div>
 </div>
@@ -144,19 +145,23 @@ const lc=L.control.layers(null,overlays,{collapsed:false}).addTo(map);
  x.onclick=function(){el.style.display='none';reopen.style.display='block';};
  reopen.onclick=function(){el.style.display='';reopen.style.display='none';};
 })();
-// ===== วางลิงก์ Google Maps / ที่อยู่ -> แค่บันทึก text + ปุ่มนำทาง (ไม่ resolve พิกัด ไม่ปักหมุด) =====
-// เดิมพยายาม resolve พิกัดจากลิงก์สั้นผ่าน proxy สาธารณะ แล้วบันทึกข้าม device ผ่าน jsonblob.com (ไม่ต้อง login)
-// แต่ proxy พวกนี้ล่มเป็นระยะ และ jsonblob.com เปลี่ยนนโยบายให้ต้อง sign-in ถึงจะสร้าง/แก้ blob ได้แล้ว (พังถาวร
-// สำหรับ anonymous use) -> ตัดออกทั้งคู่ เหลือแค่บันทึกลง localStorage ของเบราว์เซอร์ (เครื่องนี้เท่านั้น
-// แต่รับประกันว่าใช้ได้เสมอ ไม่พึ่งบริการภายนอกที่อาจล่ม/เปลี่ยนนโยบายอีก)
+// ===== วางลิงก์ Google Maps / ที่อยู่ -> บันทึก text + ปุ่มนำทาง + ปุ่มคัดลอกลิงก์ไปเปิดเครื่องอื่น =====
+// เคยลองหลายทาง: (1) resolve พิกัดจากลิงก์สั้นผ่าน proxy สาธารณะ (2) บันทึกข้าม device ผ่าน jsonblob.com
+// ทั้งคู่พึ่งบริการภายนอกฟรีที่ไม่มี auth -> โดนปิด/ล็อกดาวน์เป็นระยะ (jsonblob เปลี่ยนนโยบายให้ต้อง sign-in,
+// proxy หลายเจ้าเลิกให้ใช้ฟรี) ทำให้ฟีเจอร์พังกะทันหันซ้ำๆ -> เลิกพึ่งบริการภายนอกทั้งหมด
+// ใช้ 2 กลไกที่ไม่มีวันพัง: localStorage (จำในเครื่องเดิม) + URL parameter (ส่ง "ลิงก์เปิดเครื่องอื่น"
+// ให้ตัวเองทาง LINE/อีเมล ฯลฯ แล้วเปิดบนเครื่องปลายทาง จะเห็นค่าเดียวกันทันที ไม่ต้องมี backend เลย)
 const LINK_KEY='ev_map_saved_link';
 function saveLinkText(text){
  try{ localStorage.setItem(LINK_KEY, text||''); return true; }catch(e){ return false; }
 }
 function loadLinkText(){
  try{
-  const t=localStorage.getItem(LINK_KEY);
-  if(t) document.getElementById('sharein').value=t;
+  const p=new URLSearchParams(location.search);
+  const fromUrl=p.get('savedlink');
+  const t=fromUrl||localStorage.getItem(LINK_KEY);
+  if(t){ document.getElementById('sharein').value=t; if(fromUrl) saveLinkText(t); }
+  if(fromUrl){ p.delete('savedlink'); const q=p.toString(); history.replaceState(null,'',location.pathname+(q?'?'+q:'')); }
  }catch(e){}
 }
 function clearLink(){
@@ -181,12 +186,25 @@ function handleSaveOnEdit(){
  msg.style.color=ok?'#2e7d32':'#c62828';
  msg.textContent=ok?'✓ บันทึกแล้ว (เครื่องนี้เท่านั้น)':'⚠️ บันทึกไม่สำเร็จ';
 }
+async function handleCopyCrossDevice(){
+ const msg=document.getElementById('sharemsg');
+ const t=document.getElementById('sharein').value.trim();
+ if(!t){ msg.style.color='#c62828'; msg.textContent='ยังไม่ได้วางลิงก์'; return; }
+ const url=location.origin+location.pathname+'?savedlink='+encodeURIComponent(t);
+ try{
+  await navigator.clipboard.writeText(url);
+  msg.style.color='#1565c0'; msg.textContent='✓ คัดลอกแล้ว! ส่งให้ตัวเอง (LINE/อีเมล) แล้วเปิดบนเครื่องอื่นได้เลย';
+ }catch(e){
+  msg.style.color='#1565c0'; msg.textContent='คัดลอกไม่ได้ นี่คือลิงก์: '+url;
+ }
+}
 document.getElementById('sharenav').onclick=handleNavigate;
+document.getElementById('sharecopy').onclick=handleCopyCrossDevice;
 document.getElementById('shareclr').onclick=clearLink;
 document.getElementById('sharein').addEventListener('keydown',function(e){if(e.key==='Enter')handleSaveOnEdit();});
 document.getElementById('sharein').addEventListener('blur',handleSaveOnEdit);
 L.DomEvent.disableClickPropagation(document.getElementById('sharebox'));
-loadLinkText();  // โหลดลิงก์ที่บันทึกไว้ตอนเปิดหน้า (เครื่องนี้)  // โหลดลิงก์ที่บันทึกไว้ตอนเปิดหน้า (ข้ามเครื่อง)  // โหลดหมุดที่บันทึกไว้ตอนเปิดหน้า (ข้ามเครื่อง)
+loadLinkText();  // โหลดลิงก์ที่บันทึกไว้ (เครื่องนี้ หรือจาก ?savedlink= ที่ส่งมาจากเครื่องอื่น)  // โหลดลิงก์ที่บันทึกไว้ตอนเปิดหน้า (เครื่องนี้)  // โหลดลิงก์ที่บันทึกไว้ตอนเปิดหน้า (ข้ามเครื่อง)  // โหลดหมุดที่บันทึกไว้ตอนเปิดหน้า (ข้ามเครื่อง)
 function fit(){try{map.invalidateSize();map.fitBounds(line.getBounds(),{padding:[30,30]});}catch(e){}}
 window.addEventListener('load',function(){setTimeout(fit,200)});setTimeout(fit,400);
 </script></body></html>

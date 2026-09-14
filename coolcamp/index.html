@@ -40,7 +40,7 @@
  <span class="dot" style="background:#ef6c00"></span>PEA VOLTA <span id="cPEA" style="color:#888"></span><br>
  <span id="altdot" style="display:none"><span class="dotA"></span>ขอบเขียว = อยู่บน<b>เส้นทางเลือก</b><br></span>
  <span id="poidot" style="display:none"><span class="poistar">★</span><b>สถานที่น่าสนใจ</b> · สถานีใกล้เคียง = หมุดยี่ห้อ<b style="color:#8e24aa">ขอบม่วง</b><br></span>
- <span class="hubmk" style="background:#555;width:16px;height:16px;line-height:13px;font-size:10px;vertical-align:middle;display:inline-block">H</span> หมุดตัว <b>H</b> = สถานี Hub (chargers ≥3 หัว)<br>
+ <span class="hubmk" style="background:#e53935;width:16px;height:16px;line-height:13px;font-size:10px;vertical-align:middle;display:inline-block">H</span> หมุดตัว <b>H</b> = สถานี Hub (chargers ≥3 หัว)<br>
  <small style="color:#666">🔴 หมุดใหญ่ = จุดแวะพัก (คลิกดูระยะ + นำทาง)<br>เริ่มต้นเปิดเฉพาะ PTT · เปิดค่ายอื่นที่ปุ่มขวาบน</small></div>
 </div>
 <div id="map"></div>
@@ -79,7 +79,7 @@ D.groups.forEach(function(g){
   const bcol=s.onPoi?'#8e24aa':(s.onAlt?'#00838f':'#fff');
   var m;
   if(s.hub){
-   m=L.marker([s.lat,s.lng],{icon:L.divIcon({html:'<div class="hubmk" style="background:'+g.color+';border-color:'+bcol+'">H</div>',className:'',iconSize:[20,20],iconAnchor:[10,10]}),zIndexOffset:500});
+   m=L.marker([s.lat,s.lng],{icon:L.divIcon({html:'<div class="hubmk" style="background:#e53935;border-color:'+bcol+'">H</div>',className:'',iconSize:[20,20],iconAnchor:[10,10]}),zIndexOffset:500});
   }else{
    m=L.circleMarker([s.lat,s.lng],{radius:6,color:bcol,weight:(s.onPoi||s.onAlt)?3:1.5,fillColor:g.color,fillOpacity:.95});
   }

@@ -35,9 +35,9 @@
 <div id="legend" class="box" style="display:none">
  <span class="bar" style="background:#7b1fa2"></span><b>เส้นทางหลัก</b><br>
  <span id="altleg" style="display:none"><span class="dash"></span><b>ทางเลือก:</b> <span id="altlabel"></span><br></span>
- <span class="dot" style="background:#0288d1"></span>PTT <span id="cPTT" style="color:#888"></span><br>
- <span class="dot" style="background:#2e7d32"></span>EleXA <span id="cEleXA" style="color:#888"></span><br>
- <span class="dot" style="background:#ef6c00"></span>PEA VOLTA <span id="cPEA" style="color:#888"></span><br>
+ <span class="dot" style="background:#43a047"></span><b>ขาออก</b>จากกรุงเทพ<br>
+ <span class="dot" style="background:#0288d1"></span><b>ขาเข้า</b> (ขากลับ) สู่กรุงเทพ<br>
+ <small style="color:#666">ยี่ห้อ: PTT <span id="cPTT"></span> · EleXA <span id="cEleXA"></span> · PEA VOLTA <span id="cPEA"></span> (เลือกที่ปุ่มขวาบน)</small><br>
  <span id="altdot" style="display:none"><span class="dotA"></span>ขอบเขียว = อยู่บน<b>เส้นทางเลือก</b><br></span>
  <span id="poidot" style="display:none"><span class="poistar">★</span><b>สถานที่น่าสนใจ</b> · สถานีใกล้เคียง = หมุดยี่ห้อ<b style="color:#8e24aa">ขอบม่วง</b><br></span>
  <span class="hubmk" style="background:#e53935;width:16px;height:16px;line-height:13px;font-size:10px;vertical-align:middle;display:inline-block">H</span> หมุดตัว <b>H</b> = สถานี Hub (chargers ≥3 หัว)<br>
@@ -77,13 +77,18 @@ D.groups.forEach(function(g){
  const list=D.stations[g.key]||[]; const grp=L.layerGroup();
  list.forEach(function(s){
   const bcol=s.onPoi?'#8e24aa':(s.onAlt?'#00838f':'#fff');
+  // ทิศทางจากกรุงเทพ: ครึ่งแรกของช่วง = ขาออก (เขียว), ครึ่งหลัง = ขาเข้า/ขากลับ (ฟ้า เหมือนเดิม)
+  // ใช้ได้เฉพาะสถานีที่อยู่บนเส้นทางจริง (มี legNo) ไม่ใช่สถานีใกล้ POI
+  const outbound=(!s.onPoi && D.legs.length>0)?(s.legNo<=Math.ceil(D.legs.length/2)):null;
+  const dirColor=outbound===null?g.color:(outbound?'#43a047':'#0288d1');
   var m;
   if(s.hub){
    m=L.marker([s.lat,s.lng],{icon:L.divIcon({html:'<div class="hubmk" style="background:#e53935;border-color:'+bcol+'">H</div>',className:'',iconSize:[20,20],iconAnchor:[10,10]}),zIndexOffset:500});
   }else{
-   m=L.circleMarker([s.lat,s.lng],{radius:6,color:bcol,weight:(s.onPoi||s.onAlt)?3:1.5,fillColor:g.color,fillOpacity:.95});
+   m=L.circleMarker([s.lat,s.lng],{radius:6,color:bcol,weight:(s.onPoi||s.onAlt)?3:1.5,fillColor:dirColor,fillOpacity:.95});
   }
   const hubtag=s.hub?' <span class="tag" style="background:#333">🅷 HUB'+(s.chargers?' '+s.chargers+' หัว':'')+'</span>':'';
+  const dirtag=outbound===null?'':(outbound?' <span class="tag" style="background:#43a047">🟢 ขาออกจากกรุงเทพ</span>':' <span class="tag" style="background:#0288d1">🔵 ขาเข้า (ขากลับ) สู่กรุงเทพ</span>');
   var html;
   if(s.onPoi){
    html='<div class="pp"><b>'+s.name+'</b><br><span class="tag" style="background:'+g.color+'">'+g.label+'</span> <span class="tag" style="background:#8e24aa">📍 ใกล้สถานที่</span>'+hubtag+
@@ -93,7 +98,7 @@ D.groups.forEach(function(g){
   }else{
    const sd=s.side==='ซ้าย'?'<span class="tag" style="background:#2e7d32">✅ ฝั่งซ้าย</span>':'<span class="tag" style="background:#c62828">↩️ ฝั่งขวา</span>';
    const rt=s.onAlt?'<span class="tag" style="background:#00838f">🛣️ เส้นทางเลือก</span>':'';
-   html='<div class="pp"><b>'+s.name+'</b><br><span class="tag" style="background:'+g.color+'">'+g.label+'</span> '+sd+' '+rt+hubtag+
+   html='<div class="pp"><b>'+s.name+'</b><br><span class="tag" style="background:'+g.color+'">'+g.label+'</span> '+sd+' '+rt+hubtag+dirtag+
      '<br>🔌 '+(s.conn||'-')+(s.chargers?' · <b>'+s.chargers+' chargers</b>':'')+(s.outlets?' · '+s.outlets+' หัว CCS2':'')+((s.district||s.province)?'<br>📍 '+[s.district,s.province].filter(Boolean).join(' · '):'')+
      '<div class="seg'+(s.onAlt?' segA':'')+'"><b>ช่วง '+s.legNo+(s.onAlt?' — เส้นทางเลือก':'')+'</b><br>⬅️ จาก <b>'+s.prev+'</b> : '+s.fromPrev+' กม.<br>➡️ ถึง <b>'+s.next+'</b> : อีก '+s.toNext+' กม.</div>'+
      '↔️ ห่างเส้นทาง '+s.det+' กม.'+
